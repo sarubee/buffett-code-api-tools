@@ -34,7 +34,7 @@ $ python bc-analyzer.py [root_directory]
 root_directory はデータの保存先（ロード元）ディレクトリを指定。 GUI 画面でも選択できるので省略可。
 
 #### データ取得画面
-![bc-analyzer_data](image_bc-analyzer_data.png "bc-analyzer image1")
+![bc-analyzer_data](https://github.com/sarubee/buffett-code-api-tools/blob/images/image_bc-analyzer_data.png)
 - Root Directory: データの保存先（ロード元）ディレクトリ (**必須**)
 - Fetch: データ取得に関する設定
   - Overwrite CSVs: 保存済み CSV を上書きするかどうか
@@ -68,7 +68,7 @@ root_directory はデータの保存先（ロード元）ディレクトリを�
 ※ all.pickle は Fetch 終了時または Stop 時に、{ticker}.csv を基に作成されます。
 
 #### 散布図プロット画面
-![bc-analyzer_data](image_bc-analyzer_scatter_plot.png "bc-analyzer image2")
+![bc-analyzer_data](https://github.com/sarubee/buffett-code-api-tools/blob/images/image_bc-analyzer_scatter_plot.png)
 
 - X-axis（**value 指定必須**）
 - Y-axis (**value 指定必須**)
