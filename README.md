@@ -1,4 +1,4 @@
-# buffett-code-tools  
+# buffett-code-api-tools  
 バフェット・コードの web API 活用のための Python ツールのレポジトリです（非公式）。  
 データの取得には web API の key が必要です。
 
