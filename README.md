@@ -75,6 +75,9 @@ root_directory はデータの保存先（ロード元）ディレクトリを�
 - Size
   - x軸、y軸、プロットサイズに何を使うかを value に指定します。
   - 横の "+" ボタンをクリックすると、列名（と追加定義関数）のリストを参照できます。リストからダブルクリックでエントリに挿入します。
+  - quarter データの項目を選んだ場合は、Q4 (年間)値の最新のデータが使用されます。
+  - quarter データに対しては、年平均成長率 cagr(), 平均 mean() も使用可能です。その場合、各年の Q4 の値を使って算出されます。
+  - データ同士の演算も可能 (例: ex_operating_income / operating_income) ですが、quarter データと indicator データにまたがった演算はできません。
 - Filter: プロット銘柄をフィルタリングします
   - 例1) 予想配当利回り5%以上の銘柄のみプロットする: `dividend_yield_forecast > 5`
   - 例2) 配当性向50%以下、かつ予想配当利回り5%以上の銘柄のみプロットする: `(dividend_payout_ratio < 50) & (dividend_yield_forecast > 5)`
