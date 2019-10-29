@@ -165,13 +165,13 @@ class BCAPI:
 
         while not self.stop_fetch:
             if datetime.now() < retry_time:
-                sleep(1)
+                time.sleep(1)
                 continue
             try:
                 d = func(*args, **kwargs)
             except BCExceededFetchError as e:
                 # 24時間休んで retry
-                logger.warn(e.args)
+                logger.warn(e)
                 logger.warn(f"Wait for 1 day...")
                 retry_time = datetime.now() + timedelta(days=1)  
                 continue
