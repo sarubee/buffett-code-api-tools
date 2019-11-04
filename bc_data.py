@@ -326,14 +326,14 @@ class BCData:
         # API からデータ取得
         df, dic = api.get_company(retry)
         logger.info(f"making '{outpath_csv}' ...")
-        df.to_csv(outpath_csv, index=False)
+        df.to_csv(outpath_csv, index=False, encoding="utf_8_sig")
         with open(outpath_json, "w") as f:
             json.dump(dic, f, ensure_ascii=False, indent=4)
 
         self.load_company()
 
     def __fetch_elem(self, mode, api, retry=-1, overwrite=False, config=None):
-        """API 指標データ取得内部関数
+        """API データ(quarter, indicator) 取得内部関数
 
         Parameters
         ----------
@@ -399,7 +399,7 @@ class BCData:
                 if df is not None:
                     outpath = f"{outdir}/{ticker}.csv"
                     logger.info(f"making '{outpath}' ...")
-                    df.to_csv(outpath, index=False)
+                    df.to_csv(outpath, index=False, encoding="utf_8_sig")
                 if need_output_columns:
                     # 最初の一回だけ出力
                     with open(columns_outpath, "w") as f:
