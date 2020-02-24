@@ -19,18 +19,19 @@
  - GUI program to get and analyze Buffett Code API data
 """
 
-import argparse 
-import sys 
-import tkinter as tk 
+import argparse
+import sys
+import tkinter as tk
 import tkinter.scrolledtext as scrolledtext
-from tkinter import ttk 
-from tkinter import filedialog 
+from tkinter import ttk
+from tkinter import filedialog
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import logging 
-import threading 
+import logging
+import threading
 
 from bc_data import *
 from bc_api import *
+from bc_plot import *
 
 ### widget 定義 ###
 
@@ -133,7 +134,7 @@ class PlotAnnotationFrame(ttk.LabelFrame):
 
         self.combo = ttk.Combobox(self, state="readonly")
         self.combo.grid(row=0, column=0, sticky=tk.E+tk.W)
-        self.combo["values"] = ["mouseover", "all"]  
+        self.combo["values"] = ["mouseover", "all"]
 
 class PlotConfigFrame(ttk.Frame):
     """
@@ -198,6 +199,23 @@ class DataRootDirFrame(ttk.LabelFrame):
         self.select_btn = ttk.Button(self, text="Select")
         self.select_btn.grid(row=0, column=1)
 
+class DataYearRangeFrame(ttk.Frame):
+    """
+    年での期間指定 Frame
+    """
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.columnconfigure(1, weight=1)
+
+        self.start_label = ttk.Label(self, text="Start Year ")
+        self.start_label.grid(row=0, column=0)
+        self.start_entry = ttk.Entry(self)
+        self.start_entry.grid(row=0, column=1, sticky=tk.W)
+        self.end_label = ttk.Label(self, text="End Year ")
+        self.end_label.grid(row=1, column=0)
+        self.end_entry = ttk.Entry(self)
+        self.end_entry.grid(row=1, column=1, sticky=tk.W)
+
 class DataFetchFrame(ttk.LabelFrame):
     """
     データ取得 Frame
@@ -206,39 +224,52 @@ class DataFetchFrame(ttk.LabelFrame):
         super().__init__(master, **kwargs)
         self.columnconfigure(1, weight=1)
 
+        i = 0
         self.overwrite_check = ttk.Checkbutton(self, text="Overwrite CSVs")
-        self.overwrite_check.grid(row=0, column=0, columnspan=2, sticky=tk.W)
- 
-        self.api_key_label = ttk.Label(self, text="API KEY ")
-        self.api_key_label.grid(row=1, column=0, sticky=tk.W)
-        self.api_key_entry = ttk.Entry(self, show="*", width=30)
-        self.api_key_entry.grid(row=1, column=1, columnspan=2, sticky=tk.W+tk.E)
+        self.overwrite_check.grid(row=i, column=0, columnspan=2, sticky=tk.W)
 
-        self.grid_rowconfigure(3, minsize=5)
+        i += 1
+        self.api_key_label = ttk.Label(self, text="API KEY ")
+        self.api_key_label.grid(row=i, column=0, sticky=tk.W)
+        self.api_key_entry = ttk.Entry(self, show="*", width=30)
+        self.api_key_entry.grid(row=i, column=1, columnspan=2, sticky=tk.W+tk.E)
+
+        i += 1
+        self.grid_rowconfigure(i, minsize=5)
 
         self.separator = ttk.Separator(self)
-        self.separator.grid(row=4, column=0, columnspan=3, sticky=tk.W+tk.E)
 
+        i += 1
+        self.separator.grid(row=i, column=0, columnspan=3, sticky=tk.W+tk.E)
+
+        # company
+        i += 1
         self.company_check = ttk.Checkbutton(self, text="Company")
-        self.company_check.grid(row=5, column=0, columnspan=2, sticky=tk.W)
+        self.company_check.grid(row=i, column=0, columnspan=2, sticky=tk.W)
+        # quarter
+        i += 1
         self.quarter_check = ttk.Checkbutton(self, text="Quarter")
-        self.quarter_check.grid(row=6, column=0, columnspan=2, sticky=tk.W)
-        self.start_y_label = ttk.Label(self, text="Start Year ")
-        self.start_y_label.grid(row=7, column=0)
-        self.start_y_entry = ttk.Entry(self)
-        self.start_y_entry.grid(row=7, column=1, sticky=tk.W)
-        self.end_y_label = ttk.Label(self, text="End Year ")
-        self.end_y_label.grid(row=8, column=0)
-        self.end_y_entry = ttk.Entry(self)
-        self.end_y_entry.grid(row=8, column=1, sticky=tk.W)
- 
+        self.quarter_check.grid(row=i, column=0, columnspan=2, sticky=tk.W)
+        i += 1
+        self.quarter_year_frame = DataYearRangeFrame(self)
+        self.quarter_year_frame.grid(row=i, column=0, columnspan=2, sticky=tk.W)
+        # indicator
+        i += 1
         self.indicator_check = ttk.Checkbutton(self, text="Indicator")
-        self.indicator_check.grid(row=9, column=0, columnspan=2, sticky=tk.W)
+        self.indicator_check.grid(row=i, column=0, columnspan=2, sticky=tk.W)
+        # daily
+        i += 1
+        self.daily_check = ttk.Checkbutton(self, text="Daily")
+        self.daily_check.grid(row=i, column=0, columnspan=2, sticky=tk.W)
+        i += 1
+        self.daily_year_frame = DataYearRangeFrame(self)
+        self.daily_year_frame.grid(row=i, column=0, columnspan=2, sticky=tk.W)
 
+        i += 1
         self.fetch_btn = ttk.Button(self, text="Fetch")
-        self.fetch_btn.grid(row=10, column=0)
+        self.fetch_btn.grid(row=i, column=0)
         self.stop_btn = ttk.Button(self, text="Stop", state="disabled")
-        self.stop_btn.grid(row=10, column=1, sticky=tk.W, padx=5)
+        self.stop_btn.grid(row=i, column=1, sticky=tk.W, padx=5)
 
 class DataFrame(ttk.Frame):
     """
@@ -261,22 +292,28 @@ class DataVariables():
     """
     def __init__(self, data_frame):
         self.root_dir = tk.StringVar()
+        self.fetch_api_key = tk.StringVar()
         self.fetch_overwrite = tk.BooleanVar()
         self.fetch_company = tk.BooleanVar()
         self.fetch_quarter = tk.BooleanVar()
+        self.fetch_quarter_start_y = tk.StringVar()
+        self.fetch_quarter_end_y = tk.StringVar()
         self.fetch_indicator = tk.BooleanVar()
-        self.fetch_api_key = tk.StringVar()
-        self.fetch_start_y = tk.StringVar()
-        self.fetch_end_y = tk.StringVar()
+        self.fetch_daily = tk.BooleanVar()
+        self.fetch_daily_start_y = tk.StringVar()
+        self.fetch_daily_end_y = tk.StringVar()
 
         data_frame.dir_frame.entry["textvariable"] = self.root_dir
         data_frame.fetch_frame.overwrite_check["variable"] = self.fetch_overwrite
         data_frame.fetch_frame.api_key_entry["textvariable"] = self.fetch_api_key
         data_frame.fetch_frame.company_check["variable"] = self.fetch_company
         data_frame.fetch_frame.quarter_check["variable"] = self.fetch_quarter
-        data_frame.fetch_frame.start_y_entry["textvariable"] = self.fetch_start_y
-        data_frame.fetch_frame.end_y_entry["textvariable"] = self.fetch_end_y
+        data_frame.fetch_frame.quarter_year_frame.start_entry["textvariable"] = self.fetch_quarter_start_y
+        data_frame.fetch_frame.quarter_year_frame.end_entry["textvariable"] = self.fetch_quarter_end_y
         data_frame.fetch_frame.indicator_check["variable"] = self.fetch_indicator
+        data_frame.fetch_frame.daily_check["variable"] = self.fetch_daily
+        data_frame.fetch_frame.daily_year_frame.start_entry["textvariable"] = self.fetch_daily_start_y
+        data_frame.fetch_frame.daily_year_frame.end_entry["textvariable"] = self.fetch_daily_end_y
 
 class PlotAxisVariables():
     """
@@ -307,9 +344,9 @@ class PlotVariables():
     プロット関連の variables
     """
     def __init__(self, plot_frame):
-        self.x = PlotAxisVariables(plot_frame.config_frame.x_frame) 
+        self.x = PlotAxisVariables(plot_frame.config_frame.x_frame)
         self.y = PlotAxisVariables(plot_frame.config_frame.y_frame)
-        self.size = PlotSizeVariables(plot_frame.config_frame.size_frame) 
+        self.size = PlotSizeVariables(plot_frame.config_frame.size_frame)
 
         self.show_yx = tk.BooleanVar()
         self.filter = tk.StringVar()
@@ -320,7 +357,7 @@ class PlotVariables():
         self.annotation = tk.StringVar()
         plot_frame.config_frame.yx_check["variable"] = self.show_yx
         plot_frame.config_frame.filter_frame.value_entry.entry["textvariable"] = self.filter
-        plot_frame.config_frame.category_frame.category_combo["textvariable"] = self.category 
+        plot_frame.config_frame.category_frame.category_combo["textvariable"] = self.category
         plot_frame.config_frame.click_action_frame.open_company_check["variable"] = self.do_open_company
         plot_frame.config_frame.click_action_frame.open_arb_check["variable"] = self.do_open_arb
         plot_frame.config_frame.click_action_frame.open_arb_entry["textvariable"] = self.arb_url
@@ -330,11 +367,11 @@ class PlotVariables():
 
 class LoggingHandler(logging.Handler):
     """
-    ログハンドラ 
+    ログハンドラ
     """
     def __init__(self, text_widget):
         super().__init__()
-        self.text_widget = text_widget 
+        self.text_widget = text_widget
     def emit(self, record):
         self.text_widget.configure(state="normal")
         if len(self.text_widget.get("1.0", "end-1c")) > 0:
@@ -367,7 +404,7 @@ class Application(ttk.Frame):
         style.configure("TLabelframe.Label", font=("", 12))
         style.configure("TNotebook.Tab", font=("", 12))
 
-        master.protocol('WM_DELETE_WINDOW', self.on_window_exit) 
+        master.protocol('WM_DELETE_WINDOW', self.on_window_exit)
         master.title("bc-analyzer")
         master.geometry("1800x1000")
         self.master = master
@@ -378,13 +415,13 @@ class Application(ttk.Frame):
         self.set_variables(root_dir)
         self.set_events()
 
-        self.plot_cids = []
+        self.sc_plot = None
 
         # データ取得関連
         self.fetch_thread = None
         self.bcapi = None
 
-        self.bcdata = None 
+        self.bcdata = None
 
         # root dir 指定があればデータは読み込んでおく
         if root_dir is not None:
@@ -393,7 +430,7 @@ class Application(ttk.Frame):
     def on_window_exit(self):
         self.master.quit()
         self.master.destroy()
-    
+
     def create_widgets(self):
         self.nb = ttk.Notebook(self)
         self.nb.pack(expand=1, fill="both")
@@ -418,6 +455,7 @@ class Application(ttk.Frame):
             logging.getLogger("__name__").setLevel(logging.DEBUG)
             logging.getLogger("bc_data").setLevel(logging.DEBUG)
             logging.getLogger("bc_api").setLevel(logging.DEBUG)
+            logging.getLogger("bc_plot").setLevel(logging.DEBUG)
 
     def set_variables(self, root_dir=None):
         self.data_vars = DataVariables(self.data_frame)
@@ -430,9 +468,12 @@ class Application(ttk.Frame):
         self.data_vars.fetch_overwrite.set(False)
         self.data_vars.fetch_company.set(True)
         self.data_vars.fetch_quarter.set(True)
-        self.data_vars.fetch_start_y.set("2011")
-        self.data_vars.fetch_end_y.set("2019")
+        self.data_vars.fetch_quarter_start_y.set("2011")
+        self.data_vars.fetch_quarter_end_y.set("2019")
         self.data_vars.fetch_indicator.set(True)
+        self.data_vars.fetch_daily.set(False)
+        self.data_vars.fetch_daily_start_y.set("2017")
+        self.data_vars.fetch_daily_end_y.set("2019")
 
         self.plot_vars.x.value.set("pbr")
         self.plot_vars.x.min.set("0")
@@ -450,18 +491,18 @@ class Application(ttk.Frame):
         self.plot_vars.annotation.set("mouseover")
 
     def set_events(self):
-        self.data_frame.dir_frame.select_btn["command"] = self.select_root_directory 
+        self.data_frame.dir_frame.select_btn["command"] = self.select_root_directory
         self.data_frame.fetch_frame.fetch_btn["command"] = self.exec_fetch
         self.data_frame.fetch_frame.stop_btn["command"] = self.stop_fetch
         self.plot_frame.config_frame.plot_btn["command"] = self.exec_plot
-        self.plot_frame.config_frame.x_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.x_frame.value_entry.entry) 
-        self.plot_frame.config_frame.y_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.y_frame.value_entry.entry) 
-        self.plot_frame.config_frame.size_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.size_frame.value_entry.entry) 
-        self.plot_frame.config_frame.filter_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.filter_frame.value_entry.entry) 
+        self.plot_frame.config_frame.x_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.x_frame.value_entry.entry)
+        self.plot_frame.config_frame.y_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.y_frame.value_entry.entry)
+        self.plot_frame.config_frame.size_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.size_frame.value_entry.entry)
+        self.plot_frame.config_frame.filter_frame.value_entry.add_button["command"] = lambda : self.exec_value_tree(self.plot_frame.config_frame.filter_frame.value_entry.entry)
 
     def select_root_directory(self):
         path = tk.filedialog.askdirectory()
-        self.data_vars.root_dir.set(path) 
+        self.data_vars.root_dir.set(path)
         # 選択したら root_dir を load する
         self.exec_load()
 
@@ -469,21 +510,26 @@ class Application(ttk.Frame):
         def _enable_widgets(is_start):
             # fetch スタート時には stop ボタンは有効化、それ以外は終わるまで無効化
             # fetch 終了時には逆
-            state_stop = "enabled" if is_start else "disabled"  
-            state_others = "disabled" if is_start else "enabled"  
+            state_stop = "enabled" if is_start else "disabled"
+            state_others = "disabled" if is_start else "enabled"
             dir_frame = self.data_frame.dir_frame
-            dir_frame.select_btn["state"] = state_others 
+            dir_frame.select_btn["state"] = state_others
             fetch_frame = self.data_frame.fetch_frame
             fetch_frame.overwrite_check["state"] = state_others
             fetch_frame.api_key_label["state"] = state_others
             fetch_frame.api_key_entry["state"] = state_others
             fetch_frame.company_check["state"] = state_others
             fetch_frame.quarter_check["state"] = state_others
+            fetch_frame.quarter_year_frame.start_label["state"] = state_others
+            fetch_frame.quarter_year_frame.start_entry["state"] = state_others
+            fetch_frame.quarter_year_frame.end_label["state"] = state_others
+            fetch_frame.quarter_year_frame.end_entry["state"] = state_others
             fetch_frame.indicator_check["state"] = state_others
-            fetch_frame.start_y_label["state"] = state_others
-            fetch_frame.start_y_entry["state"] = state_others
-            fetch_frame.end_y_label["state"] = state_others
-            fetch_frame.end_y_entry["state"] = state_others
+            fetch_frame.daily_check["state"] = state_others
+            fetch_frame.daily_year_frame.start_label["state"] = state_others
+            fetch_frame.daily_year_frame.start_entry["state"] = state_others
+            fetch_frame.daily_year_frame.end_label["state"] = state_others
+            fetch_frame.daily_year_frame.end_entry["state"] = state_others
             fetch_frame.fetch_btn["state"] = state_others
             fetch_frame.stop_btn["state"] = state_stop
 
@@ -494,9 +540,12 @@ class Application(ttk.Frame):
         do_fetch_c = self.data_vars.fetch_company.get()
         do_fetch_q = self.data_vars.fetch_quarter.get()
         do_fetch_i = self.data_vars.fetch_indicator.get()
+        do_fetch_d = self.data_vars.fetch_daily.get()
         api_key = self.data_vars.fetch_api_key.get()
-        start = self.data_vars.fetch_start_y.get()
-        end = self.data_vars.fetch_end_y.get()
+        q_start = self.data_vars.fetch_quarter_start_y.get()
+        q_end = self.data_vars.fetch_quarter_end_y.get()
+        d_start = self.data_vars.fetch_daily_start_y.get()
+        d_end = self.data_vars.fetch_daily_end_y.get()
 
         def _exec_fetch_inner(bcapi):
             # NOTE: tkinter を multithread で使っていいのか？現状問題は起きていないが・・。
@@ -505,22 +554,25 @@ class Application(ttk.Frame):
                 if do_fetch_c and not bcapi.stop_fetch:
                     self.bcdata.fetch_company(bcapi, overwrite=overwrite)
                 if do_fetch_q and not bcapi.stop_fetch:
-                    self.bcdata.fetch_quarter(bcapi, start, end, overwrite=overwrite)
+                    self.bcdata.fetch_quarter(bcapi, q_start, q_end, overwrite=overwrite)
                 if do_fetch_i and not bcapi.stop_fetch:
                     self.bcdata.fetch_indicator(bcapi, overwrite=overwrite)
+                if do_fetch_d and not bcapi.stop_fetch:
+                    self.bcdata.fetch_daily(bcapi, d_start, d_end, overwrite=overwrite)
+
             except Exception as e:
                 self.logger.exception(e)
 
             # NOTE: main thread で join() しようとすると、fetch thread 側の log 出力で固まるので thread の終了に伴う処理はここでやる
-            self.fetch_thread = None 
+            self.fetch_thread = None
             _enable_widgets(False)
             self.logger.info("END fetch!")
         # 別スレッドで実行する
-        self.fetch_thread = FetchThread(api_key, _exec_fetch_inner) 
+        self.fetch_thread = FetchThread(api_key, _exec_fetch_inner)
         self.fetch_thread.start()
 
     def stop_fetch(self):
-        self.data_frame.fetch_frame.stop_btn["state"] = "disabled" 
+        self.data_frame.fetch_frame.stop_btn["state"] = "disabled"
         if self.fetch_thread is None:
             return
         self.logger.info("stopping fetching thread ...")
@@ -548,10 +600,10 @@ class Application(ttk.Frame):
         tree.column("unit", width=100)
         if _is_valid(self.bcdata.quarter):
             qid = tree.insert("", "end", text="quarter", open=True)
-            fid = tree.insert(qid, "end", text="function", open=True) 
+            fid = tree.insert(qid, "end", text="function", open=True)
             # 定義済み関数を最初に追加
-            tree.insert(fid, "end", text="cagr()", value=("年成長率 ex.) cagr(operating_income, 5, all_true=True)", "%")) 
-            tree.insert(fid, "end", text="mean()", value=("年平均値 ex.) mean(operating_income)", "")) 
+            tree.insert(fid, "end", text="cagr()", value=("年成長率 ex.) cagr(operating_income, 5, all_true=True)", "%"))
+            tree.insert(fid, "end", text="mean()", value=("年平均値 ex.) mean(operating_income)", ""))
             for k, v in sorted(self.bcdata.quarter.dic.items(), key=lambda x: x[0]):
                 # 辞書にある列を順次追加
                 tree.insert(qid, "end", text=k, values=(v["name_jp"], v["unit"]))
@@ -596,43 +648,48 @@ class Application(ttk.Frame):
 
         self.logger.info("END load!")
 
-    def clear_plot(self):
-        cf = self.plot_frame.canvas_frame
-        cf.ax.cla()
-        for cid in self.plot_cids:
-            cf.fig.canvas.mpl_disconnect(cid)
-        self.plot_cids = []
-
     def exec_plot(self):
+        self.logger.info("START plot")
+
+        # 前のプロットの削除
+        if self.sc_plot is not None:
+            self.sc_plot.clear()
+            self.sc_plot = None
+
         # データがロードされているか確認
         if self.bcdata is None:
             self.logger.error("No data is loaded.")
             return
-        elif self.bcdata.company is None:
+        if self.bcdata.company is None:
             self.logger.error("Company data is not loaded.")
             return
-        elif self.bcdata.quarter is None and self.bcdata.indicator is None:
+        # quarter と indicator は load してなければ読み込んでおく
+        if self.bcdata.quarter is None:
+            self.bcdata.load_quarter()
+        if self.bcdata.indicator is None:
+            self.bcdata.load_indicator()
+        if self.bcdata.quarter is None and self.bcdata.indicator is None:
             self.logger.error("Both quarter and indicator data are not loaded.")
             return
 
-        self.logger.info("START plot")
         def _get_float(var):
             v = var.get()
             if len(v) < 1:
-                return None 
+                return None
             else:
                 return float(v)
         try:
-            x = self.plot_vars.x.value.get()
-            y = self.plot_vars.y.value.get()
-            size = self.plot_vars.size.value.get()
+            # GUI から情報を取得
+            x_str = self.plot_vars.x.value.get()
+            y_str = self.plot_vars.y.value.get()
+            size_str = self.plot_vars.size.value.get()
             show_yx = self.plot_vars.show_yx.get()
             filter_str = self.plot_vars.filter.get()
             category = self.plot_vars.category.get()
             annotate = self.plot_vars.annotation.get()
             if category == "(all)":
                 category = None
-            if len(x) < 1 or len(y) < 1:
+            if len(x_str) < 1 or len(y_str) < 1:
                 self.logger.error("Please specify x and y value")
                 return
             xlim = [_get_float(self.plot_vars.x.min), _get_float(self.plot_vars.x.max)]
@@ -643,18 +700,74 @@ class Application(ttk.Frame):
             if self.plot_vars.do_open_arb.get():
                 arb_urls = [u.strip() for u in self.plot_vars.arb_url.get().split(";") if not u.strip() == ""]
             do_open_company = self.plot_vars.do_open_company.get()
-
-            self.clear_plot()
             cf = self.plot_frame.canvas_frame
 
-            cids = self.bcdata.plot_scatter_clickable(cf.fig, cf.ax,
-                                                      x, y, xlim=xlim, ylim=ylim,
-                                                      filter_str=filter_str, size_str=size, size_scale=size_scale,
-                                                      category=category,
-                                                      xyline=show_yx,
-                                                      click_open_company=do_open_company,  click_open_arb=arb_urls,
-                                                      annotate=annotate)
-            self.plot_cids += cids
+            # 指定列データを取得
+            # TODO: スペース詰めて判断する
+            target_dict = {"x" : x_str, "y" : y_str}
+            if len(filter_str) > 0:
+                target_dict["filter"] = filter_str
+            if len(size_str) > 0:
+                target_dict["size"] = size_str
+            df = self.bcdata.get_plot_values(target_dict)
+
+            # x, y は必須。ないものは除外。
+            df = df[~(np.isnan(df["x"]) | np.isnan(df["y"]))]
+            # 会社情報とマージ。両方に存在しない ticker は除外。
+            df.reset_index(drop=False, inplace=True)
+            df["ticker"] = df["ticker"].astype(int)
+            df = pd.merge(self.bcdata.company.data, df, on="ticker")
+
+            # size
+            size_scale = max(size_scale, 0.05)
+            size_scale_sq = size_scale ** 2
+            if "size" in df.columns:
+                # 適当に調整
+                max_ = np.nanmax(df["size"])
+                df["ssize"] = np.array([s / max_ if s > 0 else np.nan for s in df["size"]]) * size_scale_sq * 10000
+            else:
+                df["ssize"] = size_scale_sq * 200
+            df = df[~(np.isnan(df["ssize"]))]
+
+            # category
+            if category is not None:
+                df = df[df["tosyo_33category"] == category]
+
+            # filter
+            if "filter" in df.columns:
+                len_orig = len(df)
+                df = df[df["filter"]]
+                len_filtered = len(df)
+                logger.info(f"filtered: {len_orig} => {len_filtered}")
+
+            # index を一応振り直す
+            df.reset_index(inplace=True)
+
+            # click したら開く url を設定
+            urls = []
+            for u in arb_urls:
+                urls.append([u.replace("TICKER", str(t)) for t in df["ticker"]])
+            if do_open_company:
+                urls.append(list(df["url"]))
+
+            # annotate
+            if annotate == "none":
+                annotate_strs = None
+            else:
+                annotate_strs = list(df["ticker"].astype(str) + "\n" + df["company_name_en"])
+
+            # plot!
+            sc = BCPlotScatter(cf.fig, cf.ax,
+                               list(df["x"]), list(df["y"]), list(df["ssize"]),
+                               x_str, y_str, size_str if len(size_str) > 0 else None,
+                               show_yx,
+                               xlim, ylim,
+                               click_open_urls = urls if len(urls) > 0 else None,
+                               annotate=annotate,
+                               annotate_strs=annotate_strs)
+            sc.plot()
+            self.sc_plot = sc
+
             cf.canvas.draw()
         except Exception as e:
             self.logger.exception(e)
@@ -668,7 +781,7 @@ if __name__ == "__main__":
     parser.add_argument("--debug", help="execute this program in debug mode", action="store_true")
     args = parser.parse_args()
     root_dir = Path(args.root_dir).resolve() if args.root_dir is not None else None
-    
+
     root = tk.Tk()
     def update_idletasks():
         root.update_idletasks()

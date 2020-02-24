@@ -20,12 +20,13 @@ bc_api.py
 
 import pandas as pd
 import requests
-import time  
+import time
 import math
 from urllib.parse import urljoin
 from pathlib import Path
-import traceback 
-from datetime import datetime, timedelta
+import traceback
+from datetime import date, datetime, timedelta
+from dateutil.relativedelta import relativedelta
 import logging
 logger = logging.getLogger(__name__)
 
@@ -54,16 +55,16 @@ class BCAPI:
 
         Parameters
         ----------
-        url : str 
+        url : str
             データ取得先 URL
-        params : dict 
+        params : dict
             取得用パラメータ
-        headers : dict 
+        headers : dict
             取得用ヘッダ
 
         Returns
         -------
-        dict 
+        dict
             取得したデータ
         """
 
@@ -84,7 +85,7 @@ class BCAPI:
 
         Parameters
         ----------
-        tickers : list 
+        tickers : list
             取得する銘柄コード
         start : str
             開始四半期 (ex. "2012Q1")
@@ -93,7 +94,7 @@ class BCAPI:
 
         Returns
         -------
-        dict 
+        dict
             取得したデータ
         """
 
@@ -110,12 +111,12 @@ class BCAPI:
 
         Parameters
         ----------
-        tickers : list 
+        tickers : list
             取得する銘柄コード
 
         Returns
         -------
-        dict 
+        dict
             取得したデータ
         """
 
@@ -127,12 +128,38 @@ class BCAPI:
         logger.info(f"getting indicator data (tickers: {tickers}) ...")
         return BCAPI.__get(url, params, headers)
 
+    def get_daily_directly(self, tickers, start, end):
+        """引数をそのまま渡す daily データ取得用関数
+
+        Parameters
+        ----------
+        tickers : list
+            取得する銘柄コード
+        start : str
+            開始日 (ex. "2017-01-01")
+        end : str
+            開始日 (ex. "2019-12-31")
+
+        Returns
+        -------
+        dict
+            取得したデータ
+        """
+
+        url =  urljoin(self.URL_API, "daily")
+        ticker_str = ",".join(map(str, tickers))
+        params =  {"tickers" : ticker_str, "from" : start, "to" : end}
+        headers = {"x-api-key" : self.api_key}
+
+        logger.info(f"getting daily data (tickers: {tickers}, start: {start}, end: {end}) ...")
+        return BCAPI.__get(url, params, headers)
+
     def get_company_directly(self):
         """会社データ取得用関数
 
         Returns
         -------
-        dict 
+        dict
             取得したデータ
         """
 
@@ -148,19 +175,19 @@ class BCAPI:
 
         Parameters
         ----------
-        retry : int 
+        retry : int
             エラーが起きた場合のリトライ間隔 [minites]
             負数ならリトライしない。
             NOTE: 取得制限に引っかかった場合はこの値とは関係な 24h 待つ。
-        func : function 
+        func : function
             実行関数
 
         Returns
         -------
-        dict 
+        dict
             取得したデータ
         """
-        retry_time = datetime(1,1,1,0,0,0,000000) # 適当に小さい値に初期化 
+        retry_time = datetime(1,1,1,0,0,0,000000) # 適当に小さい値に初期化
         d = None
 
         while not self.stop_fetch:
@@ -173,7 +200,7 @@ class BCAPI:
                 # 24時間休んで retry
                 logger.warn(e)
                 logger.warn(f"Wait for 1 day...")
-                retry_time = datetime.now() + timedelta(days=1)  
+                retry_time = datetime.now() + timedelta(days=1)
                 continue
             except:
                 if retry < 0:
@@ -181,7 +208,7 @@ class BCAPI:
                 else:
                     logger.error(traceback.print_exc())
                     logger.error(f"Wait for {retry} minutes...")
-                    retry_time = datetime.now() + timedelta(seconds=retry*60)  
+                    retry_time = datetime.now() + timedelta(seconds=retry*60)
                     continue
             break
         else:
@@ -195,12 +222,12 @@ class BCAPI:
 
         Parameters
         ----------
-        tickers : list 
+        tickers : list
             銘柄コード
 
-        Yields 
+        Yields
         -------
-        list 
+        list
             小分けされた銘柄コード
         """
 
@@ -219,9 +246,9 @@ class BCAPI:
         end : str
             終了四半期 (ex. "2015Q4")
 
-        Yields 
+        Yields
         -------
-        list 
+        list
             小分けされた四半期期間 (ex. ["2012Q1", "2014Q4"])
         """
 
@@ -237,7 +264,7 @@ class BCAPI:
         def __prev_q(year, quarter):
             if quarter < 2:
                 y = year - 1
-                q = 4 
+                q = 4
             else:
                 y = year
                 q = quarter - 1
@@ -249,13 +276,40 @@ class BCAPI:
         while True:
             dy = ey - sy
             dq = eq - sq
-            if dy > BCAPI.MAX_NUM_YEAR or (dy == BCAPI.MAX_NUM_YEAR and dq >= 0): 
+            if dy > BCAPI.MAX_NUM_YEAR or (dy == BCAPI.MAX_NUM_YEAR and dq >= 0):
                 ey_tmp, eq_tmp = __prev_q(sy + BCAPI.MAX_NUM_YEAR, sq)
                 yield [f"{sy}Q{sq}", f"{ey_tmp}Q{eq_tmp}"]
-                sy, sq = __next_q(ey_tmp, eq_tmp) 
+                sy, sq = __next_q(ey_tmp, eq_tmp)
             else:
                 yield [f"{sy}Q{sq}", f"{ey}Q{eq}"]
                 break
+
+    @staticmethod
+    def __sliced_daily_generator(start, end):
+        """ 一度の fetch で指定できる期間（1年）に制限があるので小分け
+        Parameters
+        ----------
+        start : str
+            開始日 (ex. "2017-01-01")
+        end : str
+            開始日 (ex. "2019-12-31")
+
+        Yields
+        -------
+        list
+            小分けされた四半期期間 (ex. ["2017-01-01", "2017-12-31"])
+        """
+        # datetime.datetime 型に変換
+        s = date.fromisoformat(start)
+        e = date.fromisoformat(end)
+
+        while True:
+            s1 = s + relativedelta(years=1)
+            if e < s1:
+                yield [s.isoformat(), e.isoformat()]
+                break
+            yield [s.isoformat(), (s1 - timedelta(days=1)).isoformat()]
+            s = s1
 
     def get_quarter(self, tickers, start, end, func=None, retry=-1):
         """諸々の調整をしつつ四半期財務データを取得
@@ -264,34 +318,34 @@ class BCAPI:
 
         Parameters
         ----------
-        tickers : list 
+        tickers : list
             取得する銘柄コード
         start : str
             開始四半期 (ex. "2012Q1")
         end : str
             終了四半期 (ex. "2015Q4")
-        func : function 
+        func : function
             取得データに対して逐次実行する後処理
             多数取得する場合は何らかの要因で中断しがちなので func で逐次処理できるようにしてある。
-        retry :  int 
+        retry :  int
             エラーが起きた場合のリトライ間隔 [minites]
             負数ならリトライしない。
             NOTE: 取得制限に引っかかった場合はこの値とは関係なく 24h 待つ。
 
         Returns
         -------
-        list 
+        list
             取得した四半期データ(要素は pandas.DataFrame)
         """
 
         # ticker を小分けしつつ実行
-        results = [] 
+        results = []
         col_dict = None
         try:
-            for ts in BCAPI.__sliced_tickers_generator(tickers): 
+            for ts in BCAPI.__sliced_tickers_generator(tickers):
                 # 期間を小分けしつつ実行
-                results_ts = [] 
-                for i, p in enumerate(BCAPI.__sliced_quarters_generator(start, end)): 
+                results_ts = []
+                for i, p in enumerate(BCAPI.__sliced_quarters_generator(start, end)):
                     # 取得
                     d = self.__fetch_safe(retry, self.get_quarter_directly, ts, p[0], p[1])
 
@@ -301,11 +355,11 @@ class BCAPI:
                     elif col_dict != d["column_description"]:
                         # ありえる？一応エラーにしておく
                         raise RuntimeError(f"column definition is not unique!!")
-                    # dataframe 化 
+                    # dataframe 化
                     dfs = []
                     for t in ts:
                         l = d[str(t)]
-                        if l is None or len(l) < 1: 
+                        if l is None or len(l) < 1:
                             dfs.append(None)
                             continue
                         df = pd.DataFrame(l)
@@ -318,7 +372,7 @@ class BCAPI:
 
                         dfs.append(df)
 
-                    # 各期間の結果を結合 
+                    # 各期間の結果を結合
                     if i < 1:
                         results_ts = dfs
                         continue
@@ -332,7 +386,7 @@ class BCAPI:
                 if func is not None:
                     for j, df in enumerate(results_ts):
                         func(ts[j], df, col_dict)
-                results += results_ts 
+                results += results_ts
         except BCFetchStopped:
             pass
 
@@ -343,23 +397,23 @@ class BCAPI:
 
         Parameters
         ----------
-        tickers : list 
+        tickers : list
             取得する銘柄コード
-        func : function 
+        func : function
             取得データに対して逐次実行する後処理
             多数取得する場合は何らかの要因で中断しがちなので func で逐次処理できるようにしてある。
-        retry :  int 
+        retry :  int
             エラーが起きた場合のリトライ間隔 [minites]
             負数ならリトライしない。
             NOTE: 取得制限に引っかかった場合はこの値とは関係なく 24h 待つ。
 
         Returns
         -------
-        list 
+        list
             取得した四半期データ(要素は pandas.DataFrame)
         """
         # ticker を小分けしつつ実行
-        results = [] 
+        results = []
         col_dict = None
         try:
             for ts in BCAPI.__sliced_tickers_generator(tickers):
@@ -371,11 +425,11 @@ class BCAPI:
                 elif col_dict != d["column_description"]:
                     # ありえる？一応エラーにしておく
                     raise RuntimeError(f"column definition is not uniq!!")
-                # dataframe 化 
+                # dataframe 化
                 dfs = []
                 for t in ts:
                     l = d[str(t)]
-                    if l is None or len(l) < 1: 
+                    if l is None or len(l) < 1:
                         dfs.append(None)
                         continue
                     df = pd.DataFrame({"ticker" : t, **l[0]}, index=[0])
@@ -390,19 +444,97 @@ class BCAPI:
 
         return results, col_dict
 
-    def get_company(self, retry=-1):
-        """会社データを取得
+    def get_daily(self, tickers, start, end, func=None, retry=-1):
+        """諸々の調整をしつつ daily データを取得
 
         Parameters
         ----------
-        retry :  int 
+        tickers : list
+            取得する銘柄コード
+        start : str
+            開始日 (ex. "2017-01-01")
+        end : str
+            開始日 (ex. "2019-12-31")
+        func : function
+            取得データに対して逐次実行する後処理
+            多数取得する場合は何らかの要因で中断しがちなので func で逐次処理できるようにしてある。
+        retry :  int
             エラーが起きた場合のリトライ間隔 [minites]
             負数ならリトライしない。
             NOTE: 取得制限に引っかかった場合はこの値とは関係なく 24h 待つ。
 
         Returns
         -------
-        list 
+        list
+            取得した daily データ(要素は pandas.DataFrame)
+        """
+
+        # ticker を小分けしつつ実行
+        results = []
+        col_dict = None
+        try:
+            for ts in BCAPI.__sliced_tickers_generator(tickers):
+                # 期間を小分けしつつ実行
+                results_ts = []
+                for i, p in enumerate(BCAPI.__sliced_daily_generator(start, end)):
+                    # 取得
+                    d = self.__fetch_safe(retry, self.get_daily_directly, ts, p[0], p[1])
+
+                    # 列定義
+                    if col_dict is None:
+                        col_dict = d["column_description"]
+                    elif col_dict != d["column_description"]:
+                        # ありえる？一応エラーにしておく
+                        raise RuntimeError(f"column definition is not unique!!")
+                    # dataframe 化
+                    dfs = []
+                    for t in ts:
+                        l = d[str(t)]
+                        if l is None or len(l) < 1:
+                            dfs.append(None)
+                            continue
+                        df = pd.DataFrame(l)
+                        df["ticker"] = t
+                        df["day"] = [d.date().isoformat() for d in pd.to_datetime(df["day"])]
+                        df.set_index(["ticker", "day"], inplace=True)
+                        df.sort_index(inplace=True)
+                        df.reset_index(inplace=True)
+
+                        dfs.append(df)
+
+                    # 各期間の結果を結合
+                    if i < 1:
+                        results_ts = dfs
+                        continue
+                    for j, df in enumerate(dfs):
+                        if results_ts[j] is None:
+                            results_ts[j] = df
+                        elif df is not None:
+                            results_ts[j] = pd.concat([results_ts[j], df])
+
+                # func が指定されていればここで各 df に対して実行。
+                if func is not None:
+                    for j, df in enumerate(results_ts):
+                        func(ts[j], df, col_dict)
+                results += results_ts
+        except BCFetchStopped:
+            pass
+
+        return results, col_dict
+
+    def get_company(self, retry=-1):
+        """会社データを取得
+
+        Parameters
+        ----------
+        retry :  int
+            エラーが起きた場合のリトライ間隔 [minites]
+            負数ならリトライしない。
+            NOTE: 取得制限に引っかかった場合はこの値とは関係なく 24h 待つ。
+
+        Returns
+        -------
+        list
             取得した会社データ(要素は pandas.DataFrame)
         """
 
@@ -423,3 +555,30 @@ class BCAPI:
         result = pd.DataFrame(dfs)
 
         return result, col_dict
+
+# テストコード
+if __name__ == "__main__":
+    logging.basicConfig(
+        level = logging.INFO,
+        format = "[%(asctime)s][%(levelname)s] %(message)s",
+    )
+
+    # ファイルから key を読み取り
+    key_path = Path(__file__).resolve().parent / "key.txt"
+    with open(key_path) as f:
+        api_key = f.read().strip()
+    api = BCAPI(api_key)
+
+    # get_xxx_directory() の確認
+    #r = api.get_quarter_directly([7203], "2017Q1", "2019Q4")
+    #r = api.get_indicator_directly([7203])
+    #r = api.get_daily_directly([7203], "2019-01-01", "2019-12-31")
+    #r = api.get_company_directly()
+    #print(r)
+
+    # get_xxx() の確認
+    #r = api.get_quarter([6861, 7203, 9432, 9437], "2011Q1", "2019Q4")
+    #r = api.get_indicator([6861, 7203, 9432, 9437])
+    r = api.get_daily([6861, 7203, 9432, 9437], "2018-01-01", "2019-12-31")
+    #r = api.get_company()
+    print(r)
