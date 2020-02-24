@@ -7,12 +7,12 @@
 
 ---
 ## Requirement
-* Python (3.6.8)  
+* Python (3.7.5)  
 
-Python の標準ライブラリに含まれない以下のライブラリに依存しています。  
-* pandas (0.25.0)
-* numpy (1.17.2)
-* matplotlib (3.1.1)
+Python の標準ライブラリに含まれない以下のライブラリ（およびそれらの依存ライブラリ）に依存しています。  
+* pandas (0.25.3)
+* numpy (1.18.0)
+* matplotlib (3.1.2)
 ---
 ## Author
 [github](https://github.com/sarubee "github"), [twitter](https://twitter.com/fire50net "twitter"), [blog](https://fire50.net/ "blog")
