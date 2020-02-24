@@ -44,11 +44,14 @@ root_directory はデータの保存先（ロード元）ディレクトリを�
     - Start : 財務データの取得開始年
     - End : 財務データ取得終了年
   - Indicator : 株価指標データを取得するかどうか
+  - Daily: デイリーデータを取得するかどうか
+    - Start : デイリーデータの取得開始年
+    - End : デイリーデータ取得終了年
   - Fetch ボタン: 上記の設定に従い、データの取得を開始します
   - Stop ボタン: データの取得を停止します
 - Log: プログラムの実行状況を出力します
 
-※ Quarter、Indicator データ取得は取得済みの Company データの各銘柄について行うので Company データが先に取得されている必要があります（同時指定も OK）。
+※ Quarter、Indicator、Daily データ取得は取得済みの Company データの各銘柄について行うので Company データが先に取得されている必要があります（同時指定も OK）。
 
 ##### 保存ファイルツリー
 ```
@@ -61,13 +64,19 @@ root_directory はデータの保存先（ロード元）ディレクトリを�
   |    ├- {ticker}.csv   # 各社 quarter データ
   |    └- all.pickle     # 全社 quarter データを一つにまとめたもの (pandas.DataFrame)
   └- indicator/
-       ├- columns.json   # indicator データ列名定義
-       ├- {ticker}.csv   # 各社 indicator データ
-       └- all.pickle     # 全社 indicator データを一つにまとめたもの (pandas.DataFrame)
+  |    ├- columns.json   # indicator データ列名定義
+  |    ├- {ticker}.csv   # 各社 indicator データ
+  |    └- all.pickle     # 全社 indicator データを一つにまとめたもの (pandas.DataFrame)
+  └- daily/
+       ├- columns.json   # daily データ列名定義
+       ├- {ticker}.csv   # 各社 daily データ
+       └- all.pickle     # 全社 daily データを一つにまとめたもの (pandas.DataFrame)
 ```
 ※ all.pickle は Fetch 終了時または Stop 時に、{ticker}.csv を基に作成されます。
 
 #### 散布図プロット画面
+quarter データおよび indicator データを使って散布図プロットを作ります。
+
 ![bc-analyzer_data](https://github.com/sarubee/buffett-code-api-tools/blob/images/image_bc-analyzer_scatter_plot.png)
 
 - X-axis（**value 指定必須**）
