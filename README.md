@@ -13,6 +13,8 @@ Python の標準ライブラリに含まれない以下のライブラリ（お�
 * pandas (0.25.3)
 * numpy (1.18.0)
 * matplotlib (3.1.2)
+* requests (2.18.4)
+* python-dateutil (2.8.1)
 ---
 ## Author
 [github](https://github.com/sarubee "github"), [twitter](https://twitter.com/fire50net "twitter"), [blog](https://fire50.net/ "blog")
